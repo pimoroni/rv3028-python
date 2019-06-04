@@ -77,8 +77,8 @@ class RV3028:
                 BitField('minutes', 0x7F, adapter=BCDAdapter()),
             )),
             Register('HOURS', 0x02, fields=(
-                BitField('24hours', 0b00011111),
-                BitField('12hours', 0b00001111),
+                BitField('24hours', 0b00011111, adapter=BCDAdapter()),
+                BitField('12hours', 0b00001111, adapter=BCDAdapter()),
                 BitField('am_pm', 0x00010000),
             )),
             Register('WEEKDAY', 0x03, fields=(
@@ -95,7 +95,7 @@ class RV3028:
             )),
             Register('ALARM_MINUTES', 0x07, fields=(
                 BitField('minutes_alarm_enable', 0b10000000),
-                BitField('minutes', 0x7F),
+                BitField('minutes', 0x7F, adapter=BCDAdapter()),
             )),
             Register('ALARM_HOURS', 0x08, fields=(
                 BitField('hours_alarm_enable', 0b10000000),
@@ -305,9 +305,13 @@ class RV3028:
             ))
 
 
-
-
         ))
+        self.enable12_hours = self._rv3028.CONTROL_2.get_24_12_hours_select()
+
+
+    def reset(self):
+        self._rv3028.CONTROL_2.set_reset(True)
+        time.sleep(0.01)
 
     def part_id(self):
         self.hardware_id = 0
@@ -318,19 +322,18 @@ class RV3028:
 
         return self.hardware_id, self.version
 
-    def get_time(self):
-        result = datetime.datetime
+    def get_time(self, datetime_object=0):
+        if datetime_object == 0:
+            datetime_object = datetime.datetime.now()
         
-        result.hour = self._rv3028.HOURS.get_24hours()
-        result.minute = self._rv3028.MINUTES.get_minutes()
-        result.second = self._rv3028.SECONDS.get_seconds()
-        #result.hour = self._rv3028.HOURS.get_24hours()
+        datetime_object = datetime_object.replace(hour=self._rv3028.HOURS.get_24hours(), minute=self._rv3028.MINUTES.get_minutes(), second=self._rv3028.SECONDS.get_seconds())
 
-        return result 
+        return datetime_object
+        
+    def set_time(self, time): 
+        
 
-    def set_time(self, time=0): 
-        #print(time.__class__)
-        if isinstance(time, datetime.time):
+        if isinstance(time, datetime.datetime):
             self._rv3028.HOURS.set_24hours(time.hour)
             self._rv3028.MINUTES.set_minutes(time.minute)
             self._rv3028.SECONDS.set_seconds(time.second)
@@ -339,14 +342,55 @@ class RV3028:
             self._rv3028.MINUTES.set_minutes(time[1])
             self._rv3028.SECONDS.set_seconds(time[2])
         else:
-            raise TypeError('Time needs to be given as timedate.time object or tuple (hour, minute, seconds) type used: {0}'.format(type(time)))
+            raise TypeError('Time needs to be given as datetime.datetime object or tuple (hour, minute, seconds) type used: {0}'.format(type(time)))
 
 
-    def get_date(self):
-        print(self._rv3028.YEAR.get_year(), self._rv3028.MONTH.get_month(), self._rv3028.DATE.get_date())
-        result = datetime.date(self._rv3028.YEAR.get_year() + 2000, self._rv3028.MONTH.get_month(), self._rv3028.DATE.get_date())
+    def get_date(self, datetime_object=0, tuple_return=False):
+        if datetime_object == 0:
+            datetime_object = datetime.datetime.now()
+        datetime_object = datetime_object.replace(year=self._rv3028.YEAR.get_year() + 2000, month=self._rv3028.MONTH.get_month(), day=self._rv3028.DATE.get_date())
 
-        return result
+        return datetime_object
+
+    def set_date(self, date): 
+        
+        if isinstance(date, datetime.datetime):
+            self._rv3028.YEAR.set_year(date.year - 2000)
+            self._rv3028.MONTH.set_month(date.month)
+            self._rv3028.DATE.set_date(date.day)
+        elif type(date) == tuple:
+            self._rv3028.YEAR.set_year(date[0] - 2000)
+            self._rv3028.MONTH.set_month(date[1])
+            self._rv3028.DATE.set_date(date[2])
+        else:
+            raise TypeError('date needs to be given as datetime.datetime object or tuple (year, month, day) type used: {0}'.format(type(date)))
+
+    def set_time_and_date(self, time_and_date):
+        if isinstance(time_and_date, datetime.datetime):
+            self.set_date(time_and_date)
+            self.set_time(time_and_date)
+        
+        elif type(time_and_date) == tuple:
+            self.set_date(time_and_date[:3])
+            self.set_time(time_and_date[3:])
+
+        else:
+            raise TypeError('Time needs to be given as datetime.datetime object or tuple (year, month, day, hour, minute, seconds) type used: {0}'.format(type(time_and_date))) 
+
+    def get_time_and_date(self, datetime_object=0):
+        if datetime_object == 0:
+            datetime_object = datetime.datetime.now()
+        datetime_object = datetime_object.replace(
+            year=self._rv3028.YEAR.get_year() + 2000,
+            month=self._rv3028.MONTH.get_month(),
+            day=self._rv3028.DATE.get_date(),
+            hour=self._rv3028.HOURS.get_24hours(),
+            minute=self._rv3028.MINUTES.get_minutes(),
+            second=self._rv3028.SECONDS.get_seconds())
+
+        return datetime_object
+
+
 
 
 
@@ -371,6 +415,33 @@ class RV3028:
     def get_battery_switchover(self):
         return self._rv3028.EEPROM_BACKUP.get_automatic_battery_switchover()
 
+    def start_periodic_timer(self):
+        self._rv3028.CONTROL_1.set_periodic_countdown_timer_enable(True)
+
+    def stop_periodic_timer(self):
+        self._rv3028.CONTROL_1.set_periodic_countdown_timer_enable(False)
+
+    def get_periodic_timer_frequency(self):
+
+        return self._rv3028.CONTROL_1.set_timer_frequency_selection(value)
+
+    def set_periodic_timer_frequency(self, value):
+        self._rv3028.CONTROL_1.set_timer_frequency_selection(value)
+
+    def wait_for_periodic_timer_interupt(self, value):
+        self.stop_periodic_timer()
+
+        self._rv3028.CONTROL_2.set_periodic_time_update_interupt_enable(True)
+        self._rv3028.TIMER_VALUE_LSB.set_value(value & 0xFF)
+        self._rv3028.TIMER_VALUE_MSB.set_value((value & 0xFF00)>>8 )
+        self._rv3028.STATUS.set_periodic_countdown_timer_flag(False)
+        #self._rv3028.
+        self.start_periodic_timer()
+        while self._rv3028.STATUS.get_periodic_countdown_timer_flag() == False:  
+            print(bin(self._rv3028.STATUS.get_value()))          
+            time.sleep(0.001)
+
+
 
 
 
@@ -378,21 +449,35 @@ if __name__ == "__main__":
     import smbus
     bus = smbus.SMBus(1)
     rtc = RV3028(i2c_dev=bus)
-    now = datetime.datetime.now()
-    time = datetime.time(now.hour, now.minute, now.second)
-    #now = (23,7,30)
-    #print(now)
-    #print(type(datetime.datetime))
-    rtc.set_time(time)
     print('Part number: {0[0]} Version: {0[1]} '.format(rtc.part_id()))
-    current = rtc.get_time()
-    print(rtc.get_time())
-    print(type(current))
-    rtc.set_unix_time(0xFF0000)
-    print (hex(rtc.get_unix_time()))
-    print(rtc.get_date())
-    rtc.set_battery_switchover('standby_mode')
-    print(rtc.get_battery_switchover())
+    rtc._rv3028.EEPROM_CLKOUT.set_clkout_frequency_selection('64Hz')
+    rtc.set_periodic_timer_frequency('63Hz')
+   #rtc.reset()
+    print('start')
+    rtc.wait_for_periodic_timer_interupt(2)
+    print('done')
+    print(bin(rtc._rv3028.STATUS.get_value())) 
+    rtc._rv3028.STATUS.set_value(0)
+    rtc.stop_periodic_timer()
+    while 1:
+        print(bin(rtc._rv3028.STATUS.get_value()))
+         
+        rtc._rv3028.STATUS.set_value(0)
+        time.sleep(0.12)
+    '''
+    rtc.set_time_and_date((2001,30,30,1,1,1))
+
+    current = rtc.get_date()
+    current = rtc.get_time(current)
+    print(current)
+    print('{0} hours'.format(current.hour))
+    rtc.set_unix_time(00)
+    while 1:
+        print(hex(rtc.get_unix_time()))
+        print(rtc.get_time_and_date())
+        time.sleep(1)
+    '''
+
 
 
 
