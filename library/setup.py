@@ -47,7 +47,7 @@ setup(
     license='MIT',
     keywords='Raspberry Pi',
     url='http://www.pimoroni.com',
-    project_urls={ 'GitHub': 'https://www.github.com/pimoroni/rv3028-python' },
+    project_urls={'GitHub': 'https://www.github.com/pimoroni/rv3028-python'},
     classifiers=classifiers,
     packages=['rv3028'],
     install_requires=['i2cdevice']

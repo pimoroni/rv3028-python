@@ -21,36 +21,6 @@ class BCDAdapter(Adapter):
         return upper | lower
 
 
-class InterruptLookupAdapter(Adapter):
-    """Special version of the
-    look up adapter that
-    allows for multipule
-    values to be set at once"""
-    def __init__(self, lookup_table):
-        self.lookup_table = lookup_table
-
-    def _decode(self, value):
-        return_list = []
-
-        for bit_index in range(8):
-            if (value & (1 << bit_index) != 0):
-                index = list(self.lookup_table.values()).index(1 << bit_index)
-                return_list.append(list(self.lookup_table.keys())[index])
-
-        return return_list
-
-    def _encode(self, value):
-        return_value = 0x00
-
-        try:
-            for item in value:
-                return_value = return_value | self.lookup_table[item]
-        except TypeError:
-            raise ValueError('interrupt settings require a list')
-
-        return return_value
-
-
 class RV3028:
     def __init__(self, i2c_addr=0x26, i2c_dev=None):
         self._i2c_addr = i2c_addr
@@ -315,7 +285,7 @@ class RV3028:
         self._rv3028.CONTROL_2.set_reset(True)
         time.sleep(0.01)
 
-    def part_id(self):
+    def get_id(self):
         self.hardware_id = 0
         self.version = 0
         self.id_data = self._rv3028.PART_ID.get_id()
@@ -421,6 +391,24 @@ class RV3028:
     def set_periodic_timer_frequency(self, value):
         self._rv3028.CONTROL_1.set_timer_frequency_selection(value)
 
+    def set_periodic_timer_countdown_value(self, value):
+        self._rv3028.TIMER_VALUE_LSB.set_value(value & 0xFF)
+        self._rv3028.TIMER_VALUE_MSB.set_value((value & 0xFF00) >> 8)
+
+    def get_periodic_timer_countdown_value(self):
+        result = 0x00
+        result |= self._rv3028.TIMER_VALUE_MSB.get_value() << 8
+        result |= self._rv3028.TIMER_VALUE_LSB.get_value()
+
+        return result
+
+    def get_periodic_timer_countdown_status(self):
+        result = 0x00
+        result |= self._rv3028.TIMER_STATUS_MSB.get_value() << 8
+        result |= self._rv3028.TIMER_STATUS_LSB.get_value()
+
+        return result
+
     def clear_all_interrupts(self):
         self._rv3028.STATUS.set_value(0)
 
@@ -485,7 +473,7 @@ class RV3028:
 
             elif type(datetime_object) == tuple:
                 self._rv3028.ALARM_WEEKDAY.set_weekday(weekday)
-                self._rv3028.HOURS.set_hours(datetime_object[0])
+                self._rv3028.HOURS.set_24hours(datetime_object[0])
                 self._rv3028.MINUTES.set_minutes(datetime_object[1])
             else:
                 raise TypeError('Time needs to be given as datetime.datetime object or tuple (hour, minute) and a 0 > weekday int type used: {0}'.format(type(time)))
@@ -509,4 +497,4 @@ if __name__ == "__main__":
     import smbus
     bus = smbus.SMBus(1)
     rtc = RV3028(i2c_dev=bus)
-    print('Part ID: {0[0]} Revision: {0[1]}'.format(rtc.part_id()))
+    print('Part ID: {0[0]} Revision: {0[1]}'.format(rtc.get_id()))
