@@ -1,4 +1,4 @@
-#RV3028 Real Time Clock Breakout
+# RV3028 Real Time Clock Breakout
 
 [![Build Status](https://travis-ci.com/pimoroni/rv3028-python.svg?branch=master)](https://travis-ci.com/pimoroni/rv3028-python)
 [![Coverage Status](https://coveralls.io/repos/github/pimoroni/rv3028-python/badge.svg?branch=master)](https://coveralls.io/github/pimoroni/rv3028-python?branch=master)
