@@ -20,7 +20,7 @@ def test_setup():
     device.get_alarm_time()
     device.set_alarm_setting('disabled_monthly')
     device.get_alarm_setting()
-    for settings in device.alarm_frequecy:
+    for settings in device.alarm_frequency:
         device.set_alarm_setting(settings)
         device.get_alarm_setting()
     device.set_battery_switchover('level_switching_mode')
