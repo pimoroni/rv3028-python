@@ -10,7 +10,7 @@ def test_setup():
     device = rv3028.RV3028()
     device.reset()
     device.get_id()
-    device.set_time_and_date((1, 1, 1, 1, 1, 1))
+    device.set_time_and_date((2001, 1, 1, 1, 1, 1))
     current = device.get_time_and_date()
     device.set_time_and_date(current)
     device.set_unix_time(0xFF)
