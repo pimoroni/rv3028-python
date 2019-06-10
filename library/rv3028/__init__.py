@@ -303,7 +303,7 @@ class RV3028:
             self._rv3028.HOURS.set_24hours(t.hour)
             self._rv3028.MINUTES.set_minutes(t.minute)
             self._rv3028.SECONDS.set_seconds(t.second)
-        elif type(time) == tuple:
+        elif type(t) == tuple:
             self._rv3028.HOURS.set_24hours(t[0])
             self._rv3028.MINUTES.set_minutes(t[1])
             self._rv3028.SECONDS.set_seconds(t[2])
