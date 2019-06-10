@@ -39,7 +39,7 @@ classifiers = ['Development Status :: 4 - Beta',
 
 setup(
     name='rv3028',
-    version='0.0.1',
+    version='0.0.2',
     author='Gee Bartlett',
     author_email='gee@pimoroni.com',
     description="""Python library for the RV3028 Real Time Clock """,
