@@ -24,7 +24,7 @@ try:
     rtc.set_time_and_date(current_system_time)
 
     while True:
-        rtc_time = rtc.get_time()
+        rtc_time = rtc.get_time_and_date()
         print("The time is: {:02d}:{:02d}:{:02d} on :{:02d}/{:02d}/{:02d}".format(rtc_time.hour, rtc_time.minute, rtc_time.second, rtc_time.day, rtc_time.month, rtc_time.year))
         time.sleep(1)
 
