@@ -43,7 +43,7 @@ class RV3028:
                 BitField('weekday', 0b00000111),
             )),
             Register('DATE', 0x04, fields=(
-                BitField('date', 0b00011111, adapter=BCDAdapter()),
+                BitField('date', 0b00111111, adapter=BCDAdapter()),
             )),
             Register('MONTH', 0x05, fields=(
                 BitField('month', 0b00001111, adapter=BCDAdapter()),
