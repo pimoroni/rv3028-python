@@ -21,6 +21,27 @@ class BCDAdapter(Adapter):
         return upper | lower
 
 
+class ReverseBytesAdapter(Adapter):
+    def __init__(self, number_of_bytes):
+        self._number_of_bytes = number_of_bytes
+
+    def _decode(self, value):
+        result = 0
+        for x in range(self._number_of_bytes):
+            result <<= 8
+            result |= value & 0xff
+            value >>= 8
+        return result
+
+    def _encode(self, value):
+        result = 0
+        for x in range(self._number_of_bytes):
+            result <<= 8
+            result |= value & 0xff
+            value >>= 8
+        return result
+
+
 class RV3028:
     def __init__(self, i2c_addr=0x26, i2c_dev=None):
         self._i2c_addr = i2c_addr
@@ -67,9 +88,9 @@ class RV3028:
                 BitField('date', 0b00111111)
             )),
             Register('TIMER_VALUE', 0x0A, fields=(
-                BitField('value', 0xFF0FF, adapter=U16ByteSwapAdapter()),
+                BitField('value', 0xFF0F, adapter=U16ByteSwapAdapter()),
             ), bit_width=16),
-            Register('TIMER_STATUS', 0x0A, fields=(
+            Register('TIMER_STATUS', 0x0C, fields=(
                 BitField('value', 0xFF0F, adapter=U16ByteSwapAdapter()),
             ), bit_width=16),
             Register('STATUS', 0x0E, fields=(
@@ -155,7 +176,7 @@ class RV3028:
                 BitField('year', 0xFF),
             )),
             Register('UNIX_TIME', 0x1B, fields=(
-                BitField('value', 0xFFFFFFFF)
+                BitField('value', 0xFFFFFFFF, adapter=ReverseBytesAdapter(4)),
             ), bit_width=32),
             Register('USER_RAM', 0x1F, fields=(
                 BitField('one', 0x00FF),
