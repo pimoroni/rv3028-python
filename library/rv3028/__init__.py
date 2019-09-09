@@ -78,8 +78,8 @@ class RV3028:
             )),
             Register('ALARM_HOURS', 0x08, fields=(
                 BitField('hours_alarm_enable', 0b10000000, adapter=BCDAdapter()),
-                BitField('t24hours', 0b00111111),
-                BitField('t12hours', 0b00011111),
+                BitField('t24hours', 0b00111111, adapter=BCDAdapter()),
+                BitField('t12hours', 0b00011111, adapter=BCDAdapter()),
                 BitField('am_pm', 0b00100000),
             )),
             Register('ALARM_WEEKDAY', 0x09, fields=(
