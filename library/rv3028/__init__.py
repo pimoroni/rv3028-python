@@ -381,11 +381,16 @@ class RV3028:
         return self._rv3028.get('STATUS').alarm_flag
 
     def wait_for_periodic_timer_interrupt(self, value):
+        """Wait for a periodic timer countdown.
+
+        The countdown period in seconds is equal to the value/timer frequency.
+
+        """
         self.stop_periodic_timer()
         self._rv3028.set('TIMER_VALUE', value=value)
         self._rv3028.set('STATUS', periodic_countdown_timer_flag=False)
         self.start_periodic_timer()
-        while self._rv3028.get('STATUS').periodic_countdown_timer_flag is False:
+        while not self._rv3028.get('STATUS').periodic_countdown_timer_flag:
             time.sleep(0.001)
 
     def get_alarm_setting(self):
