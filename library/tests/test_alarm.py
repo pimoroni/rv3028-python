@@ -1,4 +1,6 @@
 from i2cdevice import MockSMBus
+import datetime
+import pytest
 
 
 def test_alarm_hours_24():
@@ -17,3 +19,26 @@ def test_alarm_hours_12():
     }))
 
     assert device.get_alarm_time().hour == 11
+
+
+def test_set_alarm_time_tuple():
+    import rv3028
+    device = rv3028.RV3028(i2c_dev=MockSMBus(1))
+    device.set_alarm_time((1, 12, 44))
+    device.set_alarm_time((12, 44), weekday=1)
+
+
+def test_set_alarm_time():
+    import rv3028
+    device = rv3028.RV3028(i2c_dev=MockSMBus(1))
+    device.set_alarm_time(datetime.datetime(2020, 2, 29, 12, 44))
+    device.set_alarm_time(datetime.datetime(2020, 2, 29, 12, 44), weekday=1)
+
+
+def test_invalid_time_source():
+    import rv3028
+    device = rv3028.RV3028(i2c_dev=MockSMBus(1))
+    with pytest.raises(TypeError):
+        device.set_alarm_time(None)
+    with pytest.raises(TypeError):
+        device.set_alarm_time(None, weekday=1)
