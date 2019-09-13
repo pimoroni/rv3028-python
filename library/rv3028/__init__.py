@@ -1,6 +1,6 @@
 import time
 from i2cdevice import Device, Register, BitField
-from i2cdevice.adapter import Adapter, LookupAdapter
+from i2cdevice.adapter import Adapter, LookupAdapter, U16ByteSwapAdapter
 import datetime
 
 __version__ = '0.0.3'
@@ -21,12 +21,33 @@ class BCDAdapter(Adapter):
         return upper | lower
 
 
+class ReverseBytesAdapter(Adapter):
+    def __init__(self, number_of_bytes):
+        self._number_of_bytes = number_of_bytes
+
+    def _decode(self, value):
+        result = 0
+        for x in range(self._number_of_bytes):
+            result <<= 8
+            result |= value & 0xff
+            value >>= 8
+        return result
+
+    def _encode(self, value):
+        result = 0
+        for x in range(self._number_of_bytes):
+            result <<= 8
+            result |= value & 0xff
+            value >>= 8
+        return result
+
+
 class RV3028:
     def __init__(self, i2c_addr=0x26, i2c_dev=None):
         self._i2c_addr = i2c_addr
         self._i2c_dev = i2c_dev
         self._is_setup = False
-        # Device definition
+
         self._rv3028 = Device([0x52], i2c_dev=self._i2c_dev, bit_width=8, registers=(
             Register('SECONDS', 0x00, fields=(
                 BitField('seconds', 0x7F, adapter=BCDAdapter()),
@@ -35,9 +56,9 @@ class RV3028:
                 BitField('minutes', 0x7F, adapter=BCDAdapter()),
             )),
             Register('HOURS', 0x02, fields=(
-                BitField('24hours', 0b00111111, adapter=BCDAdapter()),
-                BitField('12hours', 0b00001111, adapter=BCDAdapter()),
-                BitField('am_pm', 0x00010000),
+                BitField('t24hours', 0b00111111, adapter=BCDAdapter()),
+                BitField('t12hours', 0b00011111, adapter=BCDAdapter()),
+                BitField('am_pm', 0b00100000),
             )),
             Register('WEEKDAY', 0x03, fields=(
                 BitField('weekday', 0b00000111),
@@ -57,27 +78,21 @@ class RV3028:
             )),
             Register('ALARM_HOURS', 0x08, fields=(
                 BitField('hours_alarm_enable', 0b10000000, adapter=BCDAdapter()),
-                BitField('24hours', 0b00111111),
-                BitField('12hours', 0b00001111),
-                BitField('am_pm', 0x00010000),
+                BitField('t24hours', 0b00111111, adapter=BCDAdapter()),
+                BitField('t12hours', 0b00011111, adapter=BCDAdapter()),
+                BitField('am_pm', 0b00100000),
             )),
             Register('ALARM_WEEKDAY', 0x09, fields=(
                 BitField('weekday_alarm_enable', 0b10000000, adapter=BCDAdapter()),
                 BitField('weekday', 0b00000111),
                 BitField('date', 0b00111111)
             )),
-            Register('TIMER_VALUE_LSB', 0x0A, fields=(
-                BitField('value', 0xFF),
-            )),
-            Register('TIMER_VALUE_MSB', 0x0B, fields=(
-                BitField('value', 0b00001111),
-            )),
-            Register('TIMER_STATUS_LSB', 0x0C, fields=(
-                BitField('value', 0xFF),
-            )),
-            Register('TIMER_STATUS_MSB', 0x0D, fields=(
-                BitField('value', 0b00001111),
-            )),
+            Register('TIMER_VALUE', 0x0A, fields=(
+                BitField('value', 0xFF0F, adapter=U16ByteSwapAdapter()),
+            ), bit_width=16),
+            Register('TIMER_STATUS', 0x0C, fields=(
+                BitField('value', 0xFF0F, adapter=U16ByteSwapAdapter()),
+            ), bit_width=16),
             Register('STATUS', 0x0E, fields=(
                 BitField('value', 0xFF),
                 BitField('eeprom_busy_flag', 0b10000000),
@@ -100,7 +115,7 @@ class RV3028:
                     '4036Hz': 0b00,  # 214.14us
                     '63Hz': 0b01,    # 15.625ms
                     '1Hz': 0b10,     # 1s
-                    '0.016Hz': 0b11    # 60s
+                    '0.016Hz': 0b11  # 60s
                 })),
             )),
             Register('CONTROL_2', 0x10, fields=(
@@ -111,7 +126,7 @@ class RV3028:
                 BitField('periodic_countdown_timer_interupt_enable', 0b00010000),
                 BitField('alarm_interupt_enable', 0b00001000),
                 BitField('external_event_interrupt_enable', 0b00000100),
-                BitField('24_12_hours_select', 0b00000010),
+                BitField('select_24_12_hours', 0b00000010),
                 BitField('reset', 0b00000001),
             )),
             Register('GENERAL_PURPOSE_STORAGE_REGISTER', 0x11, fields=(
@@ -147,8 +162,8 @@ class RV3028:
                 BitField('minutes', 0x7F),
             )),
             Register('TIMESTAMP_HOURS', 0x17, fields=(
-                BitField('24hours', 0b00111111),
-                BitField('12hours', 0b00001111),
+                BitField('t24hours', 0b00111111),
+                BitField('t12hours', 0b00001111),
                 BitField('am_pm', 0x00010000),
             )),
             Register('TIMESTAMP_DATE', 0x18, fields=(
@@ -161,35 +176,15 @@ class RV3028:
                 BitField('year', 0xFF),
             )),
             Register('UNIX_TIME', 0x1B, fields=(
-                BitField('value', 0xFF),
-            )),
-            Register('UNIX_TIME_1', 0x1C, fields=(
-                BitField('value', 0xFF),
-            )),
-            Register('UNIX_TIME_2', 0x1D, fields=(
-                BitField('value', 0xFF),
-            )),
-            Register('UNIX_TIME_3', 0x1E, fields=(
-                BitField('value', 0xFF),
-            )),
-            Register('USER_RAM_1', 0x1F, fields=(
-                BitField('value', 0b11111111),
-            )),
-            Register('USER_RAM_2', 0x20, fields=(
-                BitField('value', 0b11111111),
-            )),
+                BitField('value', 0xFFFFFFFF, adapter=ReverseBytesAdapter(4)),
+            ), bit_width=32),
+            Register('USER_RAM', 0x1F, fields=(
+                BitField('one', 0x00FF),
+                BitField('two', 0xFF00),
+            ), bit_width=16),
             Register('PASSWORD', 0x21, fields=(
-                BitField('value', 0xFF),
-            )),
-            Register('PASSWORD_1', 0x22, fields=(
-                BitField('value', 0xFF),
-            )),
-            Register('PASSWORD_2', 0x23, fields=(
-                BitField('value', 0xFF),
-            )),
-            Register('PASSWORD_3', 0x24, fields=(
-                BitField('value', 0xFF),
-            )),
+                BitField('value', 0xFFFFFFFF),
+            ), bit_width=32),
             Register('EEPROM_ADDRESS', 0x25, fields=(
                 BitField('value', 0xFF),
             )),
@@ -205,24 +200,16 @@ class RV3028:
                     'read_one_byte_from_eeprom_address': 0x22
                 })),
             )),
-            Register('PART_ID', 0x28, fields=(
-                BitField('id', 0xFF),
+            Register('PART', 0x28, fields=(
+                BitField('id', 0xF0),
+                BitField('version', 0x0F)
             )),
             Register('EEPROM_PASSWORD_ENABLE', 0x30, fields=(
                 BitField('value', 0xFF),  # Write 0xFF to this register to enable EEPROM password
             )),
             Register('EEPROM_PASSWORD', 0x31, fields=(
-                BitField('value', 0xFF),
-            )),
-            Register('EEPROM_PASSWORD_1', 0x32, fields=(
-                BitField('value', 0xFF),
-            )),
-            Register('EEPROM_PASSWORD_2', 0x33, fields=(
-                BitField('value', 0xFF),
-            )),
-            Register('EEPROM_PASSWORD_3', 0x34, fields=(
-                BitField('value', 0xFF),
-            )),
+                BitField('value', 0xFFFFFFFF),
+            ), bit_width=32),
             Register('EEPROM_CLKOUT', 0x35, fields=(
                 BitField('value', 0xFF),
                 BitField('clkout_output', 0b10000000),
@@ -264,7 +251,7 @@ class RV3028:
 
 
         ))
-        self.enable_12hours = self._rv3028.CONTROL_2.get_24_12_hours_select()
+        self.enable_12hours = self._rv3028.get('CONTROL_2').select_24_12_hours
         self.alarm_frequency = {
             'disabled_weekly': 0b0111,
             'disabled_monthly': 0b1111,
@@ -282,17 +269,12 @@ class RV3028:
         }
 
     def reset(self):
-        self._rv3028.CONTROL_2.set_reset(True)
+        self._rv3028.set('CONTROL_2', reset=True)
         time.sleep(0.01)
 
     def get_id(self):
-        self.hardware_id = 0
-        self.version = 0
-        self.id_data = self._rv3028.PART_ID.get_id()
-        self.hardware_id = (self.id_data & 0xF0) >> 4
-        self.version = self.id_data & 0x0F
-
-        return self.hardware_id, self.version
+        part = self._rv3028.get('PART')
+        return part.id, part.version
 
     def get_time(self):
         datetime_object = self.get_time_and_date()
@@ -300,13 +282,13 @@ class RV3028:
 
     def set_time(self, t):
         if isinstance(t, datetime.datetime) or isinstance(t, datetime.time):
-            self._rv3028.HOURS.set_24hours(t.hour)
-            self._rv3028.MINUTES.set_minutes(t.minute)
-            self._rv3028.SECONDS.set_seconds(t.second)
+            self._rv3028.set('HOURS', t24hours=t.hour)
+            self._rv3028.set('MINUTES', minutes=t.minute)
+            self._rv3028.set('SECONDS', seconds=t.second)
         elif type(t) == tuple:
-            self._rv3028.HOURS.set_24hours(t[0])
-            self._rv3028.MINUTES.set_minutes(t[1])
-            self._rv3028.SECONDS.set_seconds(t[2])
+            self._rv3028.set('HOURS', t24hours=t[0])
+            self._rv3028.set('MINUTES', minutes=t[1])
+            self._rv3028.set('SECONDS', seconds=t[2])
         else:
             raise TypeError('Time needs to be given as datetime.datetime object, or tuple (hour, minute, seconds) type used: {0}'.format(type(t)))
 
@@ -316,13 +298,13 @@ class RV3028:
 
     def set_date(self, date):
         if isinstance(date, datetime.datetime) or isinstance(date, datetime.date):
-            self._rv3028.YEAR.set_year(date.year - 2000)
-            self._rv3028.MONTH.set_month(date.month)
-            self._rv3028.DATE.set_date(date.day)
+            self._rv3028.set('YEAR', year=date.year - 2000)
+            self._rv3028.set('MONTH', month=date.month)
+            self._rv3028.set('DATE', date=date.day)
         elif type(date) == tuple:
-            self._rv3028.YEAR.set_year(date[0] - 2000)
-            self._rv3028.MONTH.set_month(date[1])
-            self._rv3028.DATE.set_date(date[2])
+            self._rv3028.set('YEAR', year=date[0] - 2000)
+            self._rv3028.set('MONTH', month=date[1])
+            self._rv3028.set('DATE', date=date[2])
         else:
             raise TypeError('Date needs to be given as datetime.datetime object, datetime.date object, or tuple (year, month, day) type used: {0}'.format(type(date)))
 
@@ -339,126 +321,124 @@ class RV3028:
             raise TypeError('Time needs to be given as datetime.datetime object, or tuple (year, month, day, hour, minute, seconds) type used: {0}'.format(type(time_and_date)))
 
     def get_time_and_date(self):
-        return datetime.datetime(self._rv3028.YEAR.get_year() + 2000, self._rv3028.MONTH.get_month(), self._rv3028.DATE.get_date(), self._rv3028.HOURS.get_24hours(), self._rv3028.MINUTES.get_minutes(), self._rv3028.SECONDS.get_seconds())
+        return datetime.datetime(
+            self._rv3028.get('YEAR').year + 2000,
+            self._rv3028.get('MONTH').month,
+            self._rv3028.get('DATE').date,
+            self._rv3028.get('HOURS').t24hours,
+            self._rv3028.get('MINUTES').minutes,
+            self._rv3028.get('SECONDS').seconds)
 
     def get_unix_time(self):
-        result = 0x00
-        result |= self._rv3028.UNIX_TIME_3.get_value() << 24
-        result |= self._rv3028.UNIX_TIME_2.get_value() << 16
-        result |= self._rv3028.UNIX_TIME_1.get_value() << 8
-        result |= self._rv3028.UNIX_TIME.get_value()
-
-        return result
+        return self._rv3028.get('UNIX_TIME').value
 
     def set_unix_time(self, value):
-        self._rv3028.UNIX_TIME_3.set_value((value & 0xFF000000) >> 24)
-        self._rv3028.UNIX_TIME_2.set_value((value & 0x00FF0000) >> 16)
-        self._rv3028.UNIX_TIME_1.set_value((value & 0x0000FF00) >> 8)
-        self._rv3028.UNIX_TIME.set_value(value & 0x000000FF)
+        self._rv3028.set('UNIX_TIME', value=value)
 
     def set_battery_switchover(self, value):
-        self._rv3028.EEPROM_BACKUP.set_automatic_battery_switchover(value)
+        self._rv3028.set('EEPROM_BACKUP', automatic_battery_switchover=value)
 
     def get_battery_switchover(self):
-        return self._rv3028.EEPROM_BACKUP.get_automatic_battery_switchover()
+        return self._rv3028.get('EEPROM_BACKUP').automatic_battery_switchover
 
     def start_periodic_timer(self):
-        self._rv3028.CONTROL_1.set_periodic_countdown_timer_enable(True)
+        self._rv3028.set('CONTROL_1', periodic_countdown_timer_enable=True)
 
     def stop_periodic_timer(self):
-        self._rv3028.CONTROL_1.set_periodic_countdown_timer_enable(False)
+        self._rv3028.set('CONTROL_1', periodic_countdown_timer_enable=False)
 
     def get_periodic_timer_frequency(self):
-        return self._rv3028.CONTROL_1.get_timer_frequency_selection()
+        return self._rv3028.get('CONTROL_1').timer_frequency_selection
 
     def set_periodic_timer_frequency(self, value):
-        self._rv3028.CONTROL_1.set_timer_frequency_selection(value)
+        self._rv3028.set('CONTROL_1', timer_frequency_selection=value)
 
     def set_periodic_timer_countdown_value(self, value):
-        self._rv3028.TIMER_VALUE_LSB.set_value(value & 0xFF)
-        self._rv3028.TIMER_VALUE_MSB.set_value((value & 0xFF00) >> 8)
+        self._rv3028.set('TIMER_VALUE', value=value)
 
     def get_periodic_timer_countdown_value(self):
-        result = 0x00
-        result |= self._rv3028.TIMER_VALUE_MSB.get_value() << 8
-        result |= self._rv3028.TIMER_VALUE_LSB.get_value()
-        return result
+        return self._rv3028.get('TIMER_VALUE').value
 
     def get_periodic_timer_countdown_status(self):
-        result = 0x00
-        result |= self._rv3028.TIMER_STATUS_MSB.get_value() << 8
-        result |= self._rv3028.TIMER_STATUS_LSB.get_value()
-        return result
+        return self._rv3028.get('TIMER_STATUS').value
 
     def clear_all_interrupts(self):
-        self._rv3028.STATUS.set_value(0)
+        self._rv3028.set('STATUS', value=0)
 
     def clear_periodic_countdown_timer_interrupt(self):
-        self._rv3028.STATUS.set_periodic_countdown_timer_flag(0)
+        self._rv3028.set('STATUS', periodic_countdown_timer_flag=0)
 
     def clear_alarm_interrupt(self):
-        self._rv3028.STATUS.set_alarm_flag(0)
+        self._rv3028.set('STATUS', alarm_flag=0)
 
     def get_all_interrupts(self):
-        return self._rv3028.STATUS.get_value()
+        return self._rv3028.get('STATUS').value
 
     def get_periodic_countdown_timer_interrupt(self):
-        return self._rv3028.STATUS.get_periodic_countdown_timer_flag()
+        return self._rv3028.get('STATUS').periodic_countdown_timer_flag
 
     def get_alarm_interrupt(self):
-        return self._rv3028.STATUS.get_alarm_flag()
+        return self._rv3028.get('STATUS').alarm_flag
 
     def wait_for_periodic_timer_interrupt(self, value):
+        """Wait for a periodic timer countdown.
+
+        The countdown period in seconds is equal to the value/timer frequency.
+
+        """
         self.stop_periodic_timer()
-        self._rv3028.TIMER_VALUE_LSB.set_value(value & 0xFF)
-        self._rv3028.TIMER_VALUE_MSB.set_value((value & 0xFF00) >> 8)
-        self._rv3028.STATUS.set_periodic_countdown_timer_flag(False)
+        self._rv3028.set('TIMER_VALUE', value=value)
+        self._rv3028.set('STATUS', periodic_countdown_timer_flag=False)
         self.start_periodic_timer()
-        while self._rv3028.STATUS.get_periodic_countdown_timer_flag() is False:
+        while not self._rv3028.get('STATUS').periodic_countdown_timer_flag:
             time.sleep(0.001)
 
     def get_alarm_setting(self):
-        setting = 0b0000
-        setting = self._rv3028.ALARM_MINUTES.get_minutes_alarm_enable() | (self._rv3028.ALARM_HOURS.get_hours_alarm_enable() << 1) | (self._rv3028.ALARM_WEEKDAY.get_weekday_alarm_enable() << 2) | (self._rv3028.CONTROL_1.get_weekday_date_alarm() << 3)
-        print(bin(setting))
+        setting = self._rv3028.get('ALARM_MINUTES').minutes_alarm_enable
+        setting |= (self._rv3028.get('ALARM_HOURS').hours_alarm_enable << 1)
+        setting |= (self._rv3028.get('ALARM_WEEKDAY').weekday_alarm_enable << 2)
+        setting |= (self._rv3028.get('CONTROL_1').weekday_date_alarm << 3)
         return_value = [key for (key, value) in self.alarm_frequency.items() if value == setting]
         return return_value
 
     def set_alarm_setting(self, setting):
-        self._rv3028.ALARM_MINUTES.set_minutes_alarm_enable(self.alarm_frequency.get(setting) & 0b0001)
-        self._rv3028.ALARM_HOURS.set_hours_alarm_enable((self.alarm_frequency.get(setting) & 0b0010) >> 1)
-        self._rv3028.ALARM_WEEKDAY.set_weekday_alarm_enable((self.alarm_frequency.get(setting) & 0b0100) >> 2)
-        self._rv3028.CONTROL_1.set_weekday_date_alarm((self.alarm_frequency.get(setting) & 0b1000) >> 3)
+        self._rv3028.set('ALARM_MINUTES', minutes_alarm_enable=self.alarm_frequency.get(setting) & 0b0001)
+        self._rv3028.set('ALARM_HOURS', hours_alarm_enable=(self.alarm_frequency.get(setting) & 0b0010) >> 1)
+        self._rv3028.set('ALARM_WEEKDAY', weekday_alarm_enable=(self.alarm_frequency.get(setting) & 0b0100) >> 2)
+        self._rv3028.set('CONTROL_1', weekday_date_alarm=(self.alarm_frequency.get(setting) & 0b1000) >> 3)
 
     def set_alarm_time(self, datetime_object, weekday=0):
         if weekday == 0:
             if isinstance(datetime_object, datetime.datetime):
-                self._rv3028.ALARM_WEEKDAY.set_date(datetime_object.day)
-                self._rv3028.ALARM_HOURS.set_24hours(datetime_object.hour)
-                self._rv3028.ALARM_MINUTES.set_minutes(datetime_object.minute)
+                self._rv3028.set('ALARM_WEEKDAY', date=datetime_object.day)
+                self._rv3028.set('ALARM_HOURS', t24hours=datetime_object.hour)
+                self._rv3028.set('ALARM_MINUTES', minutes=datetime_object.minute)
 
             elif type(datetime_object) == tuple:
-                self._rv3028.ALARM_WEEKDAY.set_date(datetime_object[0])
-                self._rv3028.ALARM_HOURS.set_24hours(datetime_object[1])
-                self._rv3028.ALARM_MINUTES.set_minutes(datetime_object[2])
+                self._rv3028.set('ALARM_WEEKDAY', date=datetime_object[0])
+                self._rv3028.set('ALARM_HOURS', t24hours=datetime_object[1])
+                self._rv3028.set('ALARM_MINUTES', minutes=datetime_object[2])
 
             else:
                 raise TypeError('Time needs to be given as datetime.datetime object or tuple (hour, minute, date) type used: {0}'.format(type(time)))
         else:
             if isinstance(datetime_object, datetime.datetime):
-                self._rv3028.ALARM_WEEKDAY.set_weekday(weekday)
-                self._rv3028.ALARM_HOURS.set_24hours(datetime_object.hour)
-                self._rv3028.ALARM_MINUTES.set_minutes(datetime_object.minute)
+                self._rv3028.set('ALARM_WEEKDAY', weekday=weekday)
+                self._rv3028.set('ALARM_HOURS', t24hours=datetime_object.hour)
+                self._rv3028.set('ALARM_MINUTES', minutes=datetime_object.minute)
 
             elif type(datetime_object) == tuple:
-                self._rv3028.ALARM_WEEKDAY.set_weekday(weekday)
-                self._rv3028.ALARM_HOURS.set_24hours(datetime_object[0])
-                self._rv3028.ALARM_MINUTES.set_minutes(datetime_object[1])
+                self._rv3028.set('ALARM_WEEKDAY', weekday=weekday)
+                self._rv3028.set('ALARM_HOURS', t24hours=datetime_object[0])
+                self._rv3028.set('ALARM_MINUTES', minutes=datetime_object[1])
             else:
                 raise TypeError('Time needs to be given as datetime.datetime object or tuple (hour, minute) and a 0 > weekday int type used: {0}'.format(type(time)))
 
     def get_alarm_time(self):
-        return datetime.time(self._rv3028.ALARM_HOURS.get_24hours(), self._rv3028.ALARM_MINUTES.get_minutes()), self._rv3028.ALARM_WEEKDAY.get_weekday()
+        return datetime.time(
+            self._rv3028.get('ALARM_HOURS').t24hours,
+            self._rv3028.get('ALARM_MINUTES').minutes,
+            self._rv3028.get('ALARM_WEEKDAY').weekday)
 
 
 if __name__ == "__main__":

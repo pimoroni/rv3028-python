@@ -20,6 +20,8 @@ def test_setup():
     device.get_alarm_time()
     device.set_alarm_setting('disabled_monthly')
     device.get_alarm_setting()
+    device.get_alarm_interrupt()
+    device.clear_alarm_interrupt()
     for settings in device.alarm_frequency:
         device.set_alarm_setting(settings)
         device.get_alarm_setting()
@@ -33,5 +35,8 @@ def test_setup():
     device.set_periodic_timer_countdown_value(0xFFFF)
     device.get_periodic_timer_countdown_value()
     device.get_periodic_timer_countdown_status()
+    device.start_periodic_timer()
+    device.clear_periodic_countdown_timer_interrupt()
+    device.get_periodic_countdown_timer_interrupt()
 
     del device
