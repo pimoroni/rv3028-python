@@ -67,7 +67,7 @@ class RV3028:
                 BitField('date', 0b00111111, adapter=BCDAdapter()),
             )),
             Register('MONTH', 0x05, fields=(
-                BitField('month', 0b00001111, adapter=BCDAdapter()),
+                BitField('month', 0b00011111, adapter=BCDAdapter()),
             )),
             Register('YEAR', 0x06, fields=(
                 BitField('year', 0xFF, adapter=BCDAdapter()),
