@@ -3,7 +3,7 @@ from i2cdevice import Device, Register, BitField
 from i2cdevice.adapter import Adapter, LookupAdapter, U16ByteSwapAdapter
 import datetime
 
-__version__ = '0.0.4'
+__version__ = '0.0.5'
 
 
 class BCDAdapter(Adapter):

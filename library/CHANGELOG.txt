@@ -1,3 +1,8 @@
+0.0.5
+-----
+
+* Bugfix: corrected BCD month to include Oct, Nov, Dec
+
 0.0.4
 -----
 
