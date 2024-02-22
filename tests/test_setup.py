@@ -1,6 +1,7 @@
 import sys
-from i2cdevice import MockSMBus
+
 import mock
+from i2cdevice import MockSMBus
 
 
 def test_setup():
