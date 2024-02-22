@@ -4,8 +4,8 @@ import mock
 
 
 def test_setup():
-    sys.modules['smbus'] = mock.Mock()
-    sys.modules['smbus'].SMBus = MockSMBus
+    sys.modules['smbus2'] = mock.Mock()
+    sys.modules['smbus2'].SMBus = MockSMBus
     import rv3028
     device = rv3028.RV3028()
     device.reset()
