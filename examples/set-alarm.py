@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
-import rv3028
-import time
 import datetime
+import time
+
+import rv3028
 
 print("""set-time.py - Sets alarm for 5 minutes time, recurring hourly,
 and waits for alarm to be triggered.

@@ -1,6 +1,7 @@
-from i2cdevice import MockSMBus
 import datetime
+
 import pytest
+from i2cdevice import MockSMBus
 
 
 def test_alarm_hours_24():
